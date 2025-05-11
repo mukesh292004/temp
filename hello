@@ -1,12 +1,96 @@
-@Override
-public void deleteEmployee(Integer id) {
-    if (!employeeRepository.existsById(id)) {
-        throw new ResourceNotFoundException("Employee not found with id " + id);
+package com.example.demo.service;
+
+import com.example.demo.exception.ConflictException;
+import com.example.demo.feignclient.AttendanceClient;
+import com.example.demo.feignclient.LeaveClient;
+import com.example.demo.model.Employee;
+import com.example.demo.repository.EmployeeRepository;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.mockito.*;
+
+import java.util.Optional;
+
+import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.*;
+
+class EmployeeServiceTest {
+
+    @Mock
+    private EmployeeRepository employeeRepository;
+
+    @Mock
+    private LeaveClient leaveClient;
+
+    @Mock
+    private AttendanceClient attendanceClient;
+
+    @InjectMocks
+    private EmployeeService employeeService;
+
+    private Employee sampleEmployee;
+
+    @BeforeEach
+    void setup() {
+        MockitoAnnotations.openMocks(this);
+        sampleEmployee = new Employee(1, "John", "john@example.com", "Developer", "IT", "1234567890");
     }
 
-    // Call other services to delete related data
-    leaveClient.deleteLeavesByEmployee(id);           // Feign call to Leave Service
-    attendanceClient.deleteAttendancesByEmployee(id); // Feign call to Attendance Service
+    @Test
+    void testSaveEmployee_Success() {
+        when(employeeRepository.findByEmail(sampleEmployee.getEmail())).thenReturn(Optional.empty());
+        when(employeeRepository.save(sampleEmployee)).thenReturn(sampleEmployee);
 
-    employeeRepository.deleteById(id);
+        Employee saved = employeeService.saveEmployee(sampleEmployee);
+
+        assertEquals("John", saved.getName());
+        verify(leaveClient, times(1)).initializeLeaveBalance(sampleEmployee.getId());
+    }
+
+    @Test
+    void testSaveEmployee_DuplicateEmail_ThrowsException() {
+        when(employeeRepository.findByEmail(sampleEmployee.getEmail())).thenReturn(Optional.of(sampleEmployee));
+
+        assertThrows(ConflictException.class, () -> {
+            employeeService.saveEmployee(sampleEmployee);
+        });
+
+        verify(employeeRepository, never()).save(any());
+        verify(leaveClient, never()).initializeLeaveBalance(anyInt());
+    }
+
+    @Test
+    void testDeleteEmployee_Success() {
+        when(employeeRepository.existsById(1)).thenReturn(true);
+
+        employeeService.deleteEmployee(1);
+
+        verify(leaveClient, times(1)).deleteLeavesByEmployee(1);
+      <dependencies>
+    <!-- JUnit 5 -->
+    <dependency>
+        <groupId>org.junit.jupiter</groupId>
+        <artifactId>junit-jupiter</artifactId>
+        <version>5.10.0</version>
+        <scope>test</scope>
+    </dependency>
+
+    <!-- Mockito -->
+    <dependency>
+        <groupId>org.mockito</groupId>
+        <artifactId>mockito-core</artifactId>
+        <version>5.7.0</version>
+        <scope>test</scope>
+    </dependency>
+
+    <!-- Spring Boot Test -->
+    <dependency>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-test</artifactId>
+        <scope>test</scope>
+    </dependency>
+</dependencies>
+  verify(attendanceClient, times(1)).deleteAttendancesByEmployee(1);
+        verify(employeeRepository, times(1)).deleteById(1);
+    }
 }
