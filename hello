@@ -1,81 +1,112 @@
-package com.example.demo;
+package com.example.demo.service;
 
-import com.example.demo.exception.ResourceNotFoundException;
-import com.example.demo.feignclient.AttendanceClient;
+import com.example.demo.exception.ClockInException;
+import com.example.demo.exception.ClockOutException;
 import com.example.demo.feignclient.LeaveClient;
-import com.example.demo.model.Employee;
-import com.example.demo.repository.EmployeeRepository;
-import com.example.demo.service.EmployeeService;
+import com.example.demo.model.Attendance;
+import com.example.demo.repository.AttendanceRepository;
 import org.junit.jupiter.api.*;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
+import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.Optional;
+import java.util.Collections;
+import java.util.List;
 
-import static org.mockito.Mockito.*;
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.*;
 
-class EmployeeServiceTest {
+class AttendanceServiceTest {
 
     @Mock
-    private EmployeeRepository employeeRepository;
+    private AttendanceRepository attendanceRepository;
 
     @Mock
     private LeaveClient leaveClient;
 
-    @Mock
-    private AttendanceClient attendanceClient;
-
     @InjectMocks
-    private EmployeeService employeeService;
-
-    private static Employee testEmployee;
+    private AttendanceService attendanceService;
 
     AutoCloseable closeable;
 
     @BeforeAll
-    static void beforeAllTests() {
-        System.out.println("This runs once before all tests");
-        testEmployee = new Employee(1, "John", "john@example.com", "Developer", "IT", "1234567890");
+    static void setupAll() {
+        System.out.println("Starting AttendanceService tests");
     }
 
     @BeforeEach
-    void beforeEachTest() {
+    void setup() {
         closeable = MockitoAnnotations.openMocks(this);
-        System.out.println("This runs before each test");
     }
 
     @AfterEach
-    void afterEachTest() throws Exception {
+    void close() throws Exception {
         closeable.close();
-        System.out.println("This runs after each test");
-    }
-
-    @AfterAll
-    static void afterAllTests() {
-        System.out.println("This runs once after all tests");
     }
 
     @Test
-    void testGetEmployeeByIdReturnsEmployee() {
-        when(employeeRepository.findById(1)).thenReturn(Optional.of(testEmployee));
+    void testClockInSuccess() {
+        int employeeId = 1;
+        LocalDate today = LocalDate.now();
 
-        Optional<Employee> result = employeeService.getEmployeeById(1);
+        when(attendanceRepository.findByEmployeeIdAndDate(employeeId, today))
+                .thenReturn(Optional.empty());
 
-        assertTrue(result.isPresent());
-        assertEquals("John", result.get().getName());
-        verify(employeeRepository, times(1)).findById(1);
+        Attendance result = attendanceService.clockIn(employeeId);
+
+        assertEquals(employeeId, result.getEmployeeId());
+        assertNotNull(result.getClockIn());
+
+        verify(attendanceRepository, times(1)).save(any(Attendance.class));
     }
 
     @Test
-    void testDeleteEmployeeThrowsExceptionIfNotFound() {
-        when(employeeRepository.existsById(99)).thenReturn(false);
+    void testClockInAlreadyDone() {
+        int employeeId = 1;
+        LocalDate today = LocalDate.now();
+        Attendance alreadyExists = new Attendance();
+        alreadyExists.setEmployeeId(employeeId);
+        alreadyExists.setDate(today);
 
-        ResourceNotFoundException exception = assertThrows(ResourceNotFoundException.class,
-                () -> employeeService.deleteEmployee(99));
+        when(attendanceRepository.findByEmployeeIdAndDate(employeeId, today))
+                .thenReturn(Optional.of(alreadyExists));
 
-        assertEquals("Employee not found with id 99", exception.getMessage());
-        verify(employeeRepository, times(1)).existsById(99);
+        assertThrows(ClockInException.class, () -> attendanceService.clockIn(employeeId));
     }
+
+    @Test
+    void testClockOutSuccess() {
+        int employeeId = 1;
+        LocalDate today = LocalDate.now();
+        Attendance attendance = new Attendance();
+        attendance.setEmployeeId(employeeId);
+        attendance.setDate(today);
+        attendance.setClockIn(LocalDateTime.now().minusHours(8));
+
+        when(attendanceRepository.findByEmployeeIdAndDate(employeeId, today))
+                .thenReturn(Optional.of(attendance));
+
+        Attendance result = attendanceService.clockOut(employeeId);
+
+        assertNotNull(result.getClockOut());
+        assertNotNull(result.getWorkHours());
+
+        verify(attendanceRepository, times(1)).save(attendance);
+    }
+
+    @Test
+    void testGetAttendanceHistory() {
+        int employeeId = 1;
+        List<Attendance> mockList = Collections.singletonList(new Attendance());
+
+        when(attendanceRepository.findAllByEmployeeId(employeeId)).thenReturn(mockList);
+
+        List<Attendance> result = attendanceService.getAttendanceHistory(employeeId);
+
+        assertEquals(1, result.size());
+    }
+
 }
