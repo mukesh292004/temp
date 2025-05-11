@@ -1,11 +1,5 @@
-@FeignClient(name = "LEAVESERVICE", path = "/leave")
-public interface LeaveClient {
-
-    @GetMapping("/leavescounts/{employeeId}/{month}")
-    int getApprovedLeaveCountForMonth(@PathVariable("employeeId") int employeeId,
-                                      @PathVariable("month") int month);
-
-    // 👇 Add this method to enable deleting leave records by employee ID
-    @DeleteMapping("/delete-by-employee/{employeeId}")
-    void deleteLeavesByEmployeeId(@PathVariable("employeeId") int employeeId);
+@DeleteMapping("/delete-by-employee/{employeeId}")
+public ResponseEntity<String> deleteLeavesByEmployee(@PathVariable int employeeId) {
+    leaveService.deleteLeavesByEmployee(employeeId);
+    return ResponseEntity.ok("All leave records deleted for employee ID: " + employeeId);
 }
