@@ -1,112 +1,96 @@
 package com.example.demo.service;
 
-import com.example.demo.exception.ClockInException;
-import com.example.demo.exception.ClockOutException;
-import com.example.demo.feignclient.LeaveClient;
-import com.example.demo.model.Attendance;
-import com.example.demo.repository.AttendanceRepository;
-import org.junit.jupiter.api.*;
-import org.mockito.InjectMocks;
-import org.mockito.Mock;
-import org.mockito.MockitoAnnotations;
-
-import java.time.LocalDate;
-import java.time.LocalDateTime;
-import java.util.Optional;
-import java.util.Collections;
-import java.util.List;
+import com.example.demo.exception.*;
+import com.example.demo.model.LeaveBalance;
+import com.example.demo.model.LeaveRequest;
+import com.example.demo.repository.LeaveBalanceRepository;
+import com.example.demo.repository.LeaveRequestRepository;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.mockito.*;
+import java.util.*;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
-class AttendanceServiceTest {
-
-    @Mock
-    private AttendanceRepository attendanceRepository;
-
-    @Mock
-    private LeaveClient leaveClient;
+class LeaveServiceTest {
 
     @InjectMocks
-    private AttendanceService attendanceService;
+    private LeaveService leaveService;
 
-    AutoCloseable closeable;
+    @Mock
+    private LeaveBalanceRepository leaveBalanceRepo;
 
-    @BeforeAll
-    static void setupAll() {
-        System.out.println("Starting AttendanceService tests");
-    }
+    @Mock
+    private LeaveRequestRepository leaveRequestRepo;
 
     @BeforeEach
-    void setup() {
-        closeable = MockitoAnnotations.openMocks(this);
-    }
-
-    @AfterEach
-    void close() throws Exception {
-        closeable.close();
+    void setUp() {
+        MockitoAnnotations.openMocks(this);
     }
 
     @Test
-    void testClockInSuccess() {
-        int employeeId = 1;
-        LocalDate today = LocalDate.now();
+    void testApplyLeave_Success() {
+        LeaveRequest request = new LeaveRequest(0, 1, "casual",
+                new Date(), new Date(), null);
 
-        when(attendanceRepository.findByEmployeeIdAndDate(employeeId, today))
-                .thenReturn(Optional.empty());
+        LeaveBalance balance = new LeaveBalance(1, 1, "casual", 10);
+        when(leaveBalanceRepo.findByEmployeeIdAndLeaveType(1L, "casual"))
+                .thenReturn(Optional.of(balance));
 
-        Attendance result = attendanceService.clockIn(employeeId);
+        String result = leaveService.applyLeave(request);
 
-        assertEquals(employeeId, result.getEmployeeId());
-        assertNotNull(result.getClockIn());
-
-        verify(attendanceRepository, times(1)).save(any(Attendance.class));
+        assertEquals("Leave request submitted.", result);
+        verify(leaveRequestRepo, times(1)).save(any(LeaveRequest.class));
     }
 
     @Test
-    void testClockInAlreadyDone() {
-        int employeeId = 1;
-        LocalDate today = LocalDate.now();
-        Attendance alreadyExists = new Attendance();
-        alreadyExists.setEmployeeId(employeeId);
-        alreadyExists.setDate(today);
+    void testApplyLeave_InsufficientBalance() {
+        LeaveRequest request = new LeaveRequest(0, 1, "casual",
+                new Date(), new Date(), null);
 
-        when(attendanceRepository.findByEmployeeIdAndDate(employeeId, today))
-                .thenReturn(Optional.of(alreadyExists));
+        LeaveBalance balance = new LeaveBalance(1, 1, "casual", 0);
+        when(leaveBalanceRepo.findByEmployeeIdAndLeaveType(1L, "casual"))
+                .thenReturn(Optional.of(balance));
 
-        assertThrows(ClockInException.class, () -> attendanceService.clockIn(employeeId));
+        assertThrows(InsufficientLeaveBalanceException.class,
+                () -> leaveService.applyLeave(request));
     }
 
     @Test
-    void testClockOutSuccess() {
-        int employeeId = 1;
-        LocalDate today = LocalDate.now();
-        Attendance attendance = new Attendance();
-        attendance.setEmployeeId(employeeId);
-        attendance.setDate(today);
-        attendance.setClockIn(LocalDateTime.now().minusHours(8));
+    void testApproveLeave_Success() {
+        LeaveRequest request = new LeaveRequest(1, 1, "sick",
+                new Date(), new Date(), "Pending");
 
-        when(attendanceRepository.findByEmployeeIdAndDate(employeeId, today))
-                .thenReturn(Optional.of(attendance));
+        LeaveBalance balance = new LeaveBalance(1, 1, "sick", 10);
 
-        Attendance result = attendanceService.clockOut(employeeId);
+        when(leaveRequestRepo.findById(1)).thenReturn(Optional.of(request));
+        when(leaveBalanceRepo.findByEmployeeIdAndLeaveType(1L, "sick"))
+                .thenReturn(Optional.of(balance));
 
-        assertNotNull(result.getClockOut());
-        assertNotNull(result.getWorkHours());
+        String result = leaveService.approveLeave(1);
 
-        verify(attendanceRepository, times(1)).save(attendance);
+        assertEquals("Leave approved.", result);
+        verify(leaveRequestRepo).save(any(LeaveRequest.class));
+        verify(leaveBalanceRepo).save(any(LeaveBalance.class));
     }
 
     @Test
-    void testGetAttendanceHistory() {
-        int employeeId = 1;
-        List<Attendance> mockList = Collections.singletonList(new Attendance());
+    void testRejectLeave_Success() {
+        LeaveRequest request = new LeaveRequest(1, 1, "casual",
+                new Date(), new Date(), "Pending");
 
-        when(attendanceRepository.findAllByEmployeeId(employeeId)).thenReturn(mockList);
+        when(leaveRequestRepo.findById(1)).thenReturn(Optional.of(request));
 
-        List<Attendance> result = attendanceService.getAttendanceHistory(employeeId);
-
-        assertEquals(1, result.size());
+        String result = leaveService.rejectLeave(1);
+        assertEquals("Leave rejected.", result);
+        assertEquals("Rejected", request.getStatus());
     }
 
+    @Test
+    void testGetAllLeaveRequests() {
+        when(leaveRequestRepo.findAll()).thenReturn(List.of(new LeaveRequest(), new LeaveRequest()));
+        List<LeaveRequest> result = leaveService.getAllLeaveRequests();
+        assertEquals(2, result.size());
+    }
 }
