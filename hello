@@ -1,96 +1,39 @@
-package com.example.demo.service;
+package com.example.demo.model;
 
-import com.example.demo.exception.*;
-import com.example.demo.model.LeaveBalance;
-import com.example.demo.model.LeaveRequest;
-import com.example.demo.repository.LeaveBalanceRepository;
-import com.example.demo.repository.LeaveRequestRepository;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-import org.mockito.*;
-import java.util.*;
+import jakarta.persistence.Entity;
+import jakarta.persistence.Id;
+import jakarta.persistence.Column;
+import jakarta.validation.constraints.*;
+import java.time.LocalDate;
+import java.time.LocalTime;
 
-import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.Mockito.*;
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.NoArgsConstructor;
 
-class LeaveServiceTest {
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+@Entity
+public class Shift {
 
-    @InjectMocks
-    private LeaveService leaveService;
+    @Id
+    @Positive(message = "ID must be a positive number")
+    private int id;
 
-    @Mock
-    private LeaveBalanceRepository leaveBalanceRepo;
+    @Positive(message = "Employee ID must be a positive number")
+    private int employeeId;
 
-    @Mock
-    private LeaveRequestRepository leaveRequestRepo;
+    @NotBlank(message = "Name is mandatory")
+    private String name;
 
-    @BeforeEach
-    void setUp() {
-        MockitoAnnotations.openMocks(this);
-    }
+    @NotNull(message = "Shift date is mandatory")
+    @FutureOrPresent(message = "Shift date must be in the present or future")
+    private LocalDate shiftDate;
 
-    @Test
-    void testApplyLeave_Success() {
-        LeaveRequest request = new LeaveRequest(0, 1, "casual",
-                new Date(), new Date(), null);
+    @NotNull(message = "Shift time is mandatory")
+    private LocalTime shiftTime;
 
-        LeaveBalance balance = new LeaveBalance(1, 1, "casual", 10);
-        when(leaveBalanceRepo.findByEmployeeIdAndLeaveType(1L, "casual"))
-                .thenReturn(Optional.of(balance));
-
-        String result = leaveService.applyLeave(request);
-
-        assertEquals("Leave request submitted.", result);
-        verify(leaveRequestRepo, times(1)).save(any(LeaveRequest.class));
-    }
-
-    @Test
-    void testApplyLeave_InsufficientBalance() {
-        LeaveRequest request = new LeaveRequest(0, 1, "casual",
-                new Date(), new Date(), null);
-
-        LeaveBalance balance = new LeaveBalance(1, 1, "casual", 0);
-        when(leaveBalanceRepo.findByEmployeeIdAndLeaveType(1L, "casual"))
-                .thenReturn(Optional.of(balance));
-
-        assertThrows(InsufficientLeaveBalanceException.class,
-                () -> leaveService.applyLeave(request));
-    }
-
-    @Test
-    void testApproveLeave_Success() {
-        LeaveRequest request = new LeaveRequest(1, 1, "sick",
-                new Date(), new Date(), "Pending");
-
-        LeaveBalance balance = new LeaveBalance(1, 1, "sick", 10);
-
-        when(leaveRequestRepo.findById(1)).thenReturn(Optional.of(request));
-        when(leaveBalanceRepo.findByEmployeeIdAndLeaveType(1L, "sick"))
-                .thenReturn(Optional.of(balance));
-
-        String result = leaveService.approveLeave(1);
-
-        assertEquals("Leave approved.", result);
-        verify(leaveRequestRepo).save(any(LeaveRequest.class));
-        verify(leaveBalanceRepo).save(any(LeaveBalance.class));
-    }
-
-    @Test
-    void testRejectLeave_Success() {
-        LeaveRequest request = new LeaveRequest(1, 1, "casual",
-                new Date(), new Date(), "Pending");
-
-        when(leaveRequestRepo.findById(1)).thenReturn(Optional.of(request));
-
-        String result = leaveService.rejectLeave(1);
-        assertEquals("Leave rejected.", result);
-        assertEquals("Rejected", request.getStatus());
-    }
-
-    @Test
-    void testGetAllLeaveRequests() {
-        when(leaveRequestRepo.findAll()).thenReturn(List.of(new LeaveRequest(), new LeaveRequest()));
-        List<LeaveRequest> result = leaveService.getAllLeaveRequests();
-        assertEquals(2, result.size());
-    }
+    @Column(nullable = false)
+    private boolean swapRequested = false;
 }
