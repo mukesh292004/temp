@@ -1,39 +1,92 @@
-package com.example.demo.model;
+package com.example.demo.service;
 
-import jakarta.persistence.Entity;
-import jakarta.persistence.Id;
-import jakarta.persistence.Column;
-import jakarta.validation.constraints.*;
-import java.time.LocalDate;
-import java.time.LocalTime;
+import com.example.demo.exception.ShiftNotFoundException;
+import com.example.demo.model.Shift;
+import com.example.demo.repository.ShiftRepository;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.mockito.*;
+import java.util.*;
 
-import lombok.AllArgsConstructor;
-import lombok.Data;
-import lombok.NoArgsConstructor;
+import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.*;
 
-@Data
-@NoArgsConstructor
-@AllArgsConstructor
-@Entity
-public class Shift {
+public class ShiftServiceTest {
 
-    @Id
-    @Positive(message = "ID must be a positive number")
-    private int id;
+    @InjectMocks
+    private ShiftService shiftService;
 
-    @Positive(message = "Employee ID must be a positive number")
-    private int employeeId;
+    @Mock
+    private ShiftRepository shiftRepository;
 
-    @NotBlank(message = "Name is mandatory")
-    private String name;
+    private Shift sampleShift;
 
-    @NotNull(message = "Shift date is mandatory")
-    @FutureOrPresent(message = "Shift date must be in the present or future")
-    private LocalDate shiftDate;
+    @BeforeEach
+    void setUp() {
+        MockitoAnnotations.openMocks(this);
 
-    @NotNull(message = "Shift time is mandatory")
-    private LocalTime shiftTime;
+        sampleShift = new Shift(1, 101, "John", "2025-05-20", "09:00", false);
+    }
 
-    @Column(nullable = false)
-    private boolean swapRequested = false;
+    @Test
+    void testFindById_ShiftExists() {
+        when(shiftRepository.findById(1)).thenReturn(Optional.of(sampleShift));
+
+        Shift result = shiftService.findById(1);
+        assertNotNull(result);
+        assertEquals("John", result.getName());
+    }
+
+    @Test
+    void testFindById_ShiftNotFound() {
+        when(shiftRepository.findById(1)).thenReturn(Optional.empty());
+
+        assertThrows(ShiftNotFoundException.class, () -> shiftService.findById(1));
+    }
+
+    @Test
+    void testSave_ValidShift() {
+        shiftService.save(sampleShift);
+        verify(shiftRepository, times(1)).save(sampleShift);
+    }
+
+    @Test
+    void testDeleteById_Success() {
+        doNothing().when(shiftRepository).deleteById(1);
+
+        String response = shiftService.deleteById(1);
+        assertEquals("Shift Deleted", response);
+    }
+
+    @Test
+    void testRequestSwap_Success() {
+        sampleShift.setSwapRequested(false);
+        when(shiftRepository.findById(1)).thenReturn(Optional.of(sampleShift));
+
+        String result = shiftService.requestSwap(1);
+        assertTrue(sampleShift.isSwapRequested());
+        assertEquals("Swap request submitted", result);
+    }
+
+    @Test
+    void testApproveSwap_Success() {
+        Shift shift2 = new Shift(2, 102, "Doe", "2025-05-20", "10:00", true);
+        sampleShift.setSwapRequested(true);
+
+        when(shiftRepository.findById(1)).thenReturn(Optional.of(sampleShift));
+        when(shiftRepository.findById(2)).thenReturn(Optional.of(shift2));
+
+        String result = shiftService.approveSwap(1, 2);
+        assertEquals("Swap approved and shifts updated", result);
+    }
+
+    @Test
+    void testRejectSwap_Success() {
+        sampleShift.setSwapRequested(true);
+        when(shiftRepository.findById(1)).thenReturn(Optional.of(sampleShift));
+
+        String result = shiftService.rejectSwap(1);
+        assertEquals("Swap request rejected for shift ID 1", result);
+        assertFalse(sampleShift.isSwapRequested());
+    }
 }
