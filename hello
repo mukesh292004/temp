@@ -1,7 +1,64 @@
-{
-    "path": "/shifts",
-    "error": "Internal Server Error",
-    "message": "JSON parse error: Cannot deserialize value of type `java.time.LocalTime` from String \"8:00:00\": Failed to deserialize java.time.LocalTime: (java.time.format.DateTimeParseException) Text '8:00:00' could not be parsed at index 0",
-    "timestamp": "2025-05-15T01:15:40.4806854",
-    "status": 500
+import java.util.*;
+
+class Dijkstra {
+    static class Pair {
+        int node, weight;
+        Pair(int node, int weight) {
+            this.node = node;
+            this.weight = weight;
+        }
+    }
+
+    static void dijkstra(int V, List<List<Pair>> graph, int source) {
+        // Step 1: Initialize distance array
+        int[] dist = new int[V];
+        Arrays.fill(dist, Integer.MAX_VALUE);
+        dist[source] = 0;
+
+        // Step 2: Priority queue to get node with smallest distance
+        PriorityQueue<Pair> pq = new PriorityQueue<>(Comparator.comparingInt(a -> a.weight));
+        pq.offer(new Pair(source, 0));
+
+        // Step 3: Process the graph
+        while (!pq.isEmpty()) {
+            Pair current = pq.poll();
+            int u = current.node;
+
+            // Check all neighbors
+            for (Pair neighbor : graph.get(u)) {
+                int v = neighbor.node;
+                int weight = neighbor.weight;
+
+                // Relaxation: check if path through u is shorter
+                if (dist[u] + weight < dist[v]) {
+                    dist[v] = dist[u] + weight;
+                    pq.offer(new Pair(v, dist[v]));
+                }
+            }
+        }
+
+        // Step 4: Output shortest distances
+        System.out.println("Shortest distances from source " + source + ":");
+        for (int i = 0; i < V; i++) {
+            System.out.println("To " + i + ": " + dist[i]);
+        }
+    }
+
+    public static void main(String[] args) {
+        int V = 5; // Number of vertices
+        List<List<Pair>> graph = new ArrayList<>();
+
+        // Initialize adjacency list
+        for (int i = 0; i < V; i++) graph.add(new ArrayList<>());
+
+        // Add edges: graph[from].add(new Pair(to, weight));
+        graph.get(0).add(new Pair(1, 2));
+        graph.get(0).add(new Pair(2, 4));
+        graph.get(1).add(new Pair(2, 1));
+        graph.get(1).add(new Pair(3, 7));
+        graph.get(2).add(new Pair(4, 3));
+        graph.get(3).add(new Pair(4, 1));
+
+        dijkstra(V, graph, 0);
+    }
 }
